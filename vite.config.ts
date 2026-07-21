@@ -40,12 +40,20 @@ export default defineConfig(async () => {
   process.env.WRANGLER_LOG_PATH ??= ".wrangler/logs";
   process.env.MINIFLARE_REGISTRY_PATH ??= ".wrangler/registry";
 
-  const plugins = [vinext(), sites()];
+  const isVercel = process.env.VERCEL === "1" || process.env.NITRO_PRESET === "vercel";
+  const plugins = [vinext()];
+
+  if (isVercel) {
+    const { nitro } = await import("nitro/vite");
+    plugins.push(nitro() as never);
+  } else {
+    plugins.push(sites());
+  }
 
   // The Cloudflare local runtime currently exits early on Windows Codex
-  // sandboxes. Keep it for deploy builds on supported environments while
-  // allowing the requested local-first app to run with the regular Vite server.
-  if (process.platform !== "win32") {
+  // sandboxes. Keep it for Sites deploy builds on supported environments,
+  // but never load it during a Vercel/Nitro build.
+  if (!isVercel && process.platform !== "win32") {
     const { cloudflare } = await import("@cloudflare/vite-plugin");
     plugins.push(
       cloudflare({
